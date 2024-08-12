@@ -9,7 +9,8 @@ from xml.dom.minidom import parse, parseString
 from core.Util import *
 from controller.RouteController import *
 from controller.DijkstraController import DijkstraPolicy
-from controller.QLearningController import QLearningPolicy
+from controller.RouteController import RandomPolicy
+
 from core.target_vehicles_generation_protocols import *
 
 if 'SUMO_HOME' in os.environ:
@@ -52,10 +53,13 @@ def get_controlled_vehicles(route_filename, connection_info, \
 
 def test_dijkstra_policy(vehicles):
     print("Testing Dijkstra's Algorithm Route Controller")
-    #scheduler = DijkstraPolicy(init_connection_info)
-    scheduler = QLearningPolicy(vehicles, connection_info, './core/rl-high-all-fixed-late.h5')
+    scheduler = DijkstraPolicy(init_connection_info)
     run_simulation(scheduler, vehicles)
-
+    
+def test_random_policy(vehicles):
+    print("Testing Random's Algorithm Route Controller")
+    scheduler = RandomPolicy(init_connection_info)
+    run_simulation(scheduler, vehicles)
 
 def run_simulation(scheduler, vehicles):
 
@@ -63,32 +67,39 @@ def run_simulation(scheduler, vehicles):
 
     traci.start([sumo_binary, "-c", "./configurations/myconfig.sumocfg", \
                  "--tripinfo-output", "./configurations/trips.trips.xml", \
-                 "--fcd-output", "./configurations/testTrace.xml","--quit-on-end"])
+                 "--fcd-output", "./configurations/testTrace.xml", "--quit-on-end"])
 
     total_time, end_number, deadlines_missed = simulation.run()
     print("Average timespan: {}, total vehicle number: {}".format(str(total_time/end_number),\
         str(end_number)))
     print(str(deadlines_missed) + ' deadlines missed.')
 
+    # Properly close the SUMO simulation before starting another one
+    traci.close()
+
 if __name__ == "__main__":
     sumo_binary = checkBinary('sumo-gui')
-    # sumo_binary = checkBinary('sumo')#use this line if you do not want the UI of SUMO
+    # sumo_binary = checkBinary('sumo') # use this line if you do not want the UI of SUMO
 
-    # parse config file for map file name
+    # Parse config file for map file name
     dom = parse("./configurations/myconfig.sumocfg")
 
     net_file_node = dom.getElementsByTagName('net-file')
     net_file_attr = net_file_node[0].attributes
 
     net_file = net_file_attr['value'].nodeValue
-    init_connection_info = ConnectionInfo("./configurations/"+net_file)
+    init_connection_info = ConnectionInfo("./configurations/" + net_file)
 
     route_file_node = dom.getElementsByTagName('route-files')
     route_file_attr = route_file_node[0].attributes
-    route_file = "./configurations/"+route_file_attr['value'].nodeValue
+    route_file = "./configurations/" + route_file_attr['value'].nodeValue
     vehicles = get_controlled_vehicles(route_file, init_connection_info, 10, 50)
-    #print the controlled vehicles generated
+
+    # Print the controlled vehicles generated
     for vid, v in vehicles.items():
         print("id: {}, destination: {}, start time:{}, deadline: {};".format(vid, \
             v.destination, v.start_time, v.deadline))
+
     test_dijkstra_policy(vehicles)
+
+    test_random_policy(vehicles)
